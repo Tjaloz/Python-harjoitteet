@@ -12,7 +12,7 @@ Tein tehtävät 1,2,3,4,5 ja 6
 
 ## Peliprojekti
 
-Tein osan 1
+Tein osan 1 ja 2
 
 ## Moduuli 4
 
