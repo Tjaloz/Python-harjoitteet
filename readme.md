@@ -45,3 +45,11 @@ Tein tehtävät 1, 2, 3 ja 4
 ## Moduuli 11
 
 Tein tehtävät 1 ja 2
+
+## Moduuli 12
+
+Tein tehtävät
+
+## Moduuli 13
+
+Tein tehtävät

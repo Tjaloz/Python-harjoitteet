@@ -1,0 +1,17 @@
+=====================================
+  AURINKOKYLÄ - Valo kylään
+=====================================
+
+Saavuit pieneen kylään vapaaehtoistyöntekijänä. Kylän ainoa sähkönlähde on
+vanha, saastuttava dieselgeneraattori. Kylänvanhin Elsa pyytää apuasi:
+kylä haluaa rakentaa aurinkovoimalan.
+
+Tavoite: hanki neljä osaa - aurinkopaneeli, akku, kaapeli ja
+hallintayksikkö - ja asenna ne kylätalolla.
+
+Voit edetä kolmella tavalla, myös yhdistellen:
+  - Osta osat torilta kylämerkeillä (ansaitse merkkejä tekemällä hommia).
+  - Rakenna osat verstaassa kierrätysmateriaaleista (kerää kierrätyspisteeltä).
+  - Opeta koulussa kestävästä kehityksestä ja saa osa palkkioksi.
+
+Kirjoita 'ohjeet' nähdäksesi käytettävissä olevat komennot.
