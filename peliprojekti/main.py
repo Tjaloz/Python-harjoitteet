@@ -62,7 +62,7 @@ class Pelaaja:
     def liiku(self, kohde):
         self.sijainti = kohde
 
-    def keraa_esine(self, nimi):
+    def kerää_esine(self, nimi):
         for esine in self.sijainti.esineet:
             if esine.nimi == nimi:
                 self.sijainti.esineet.remove(esine)
@@ -415,14 +415,14 @@ def kaynnista_peli():
             else:
                 print("Sellaista paikkaa ei löydy. Paikat:", ", ".join(h.nimi for h in huoneet))
 
-        elif komento == "keraa":
+        elif komento == "kerää":
             if not pelaaja.sijainti.esineet:
                 print("Täällä ei ole mitään kerättävää.")
             else:
                 nimet = ", ".join(e.nimi for e in pelaaja.sijainti.esineet)
                 print(f"Täällä on: {nimet}")
                 valinta = input("Minkä esineen haluat kerätä? ").strip().lower()
-                if pelaaja.keraa_esine(valinta):
+                if pelaaja.kerää_esine(valinta):
                     print(f"Keräsit esineen: {valinta}")
                 else:
                     print("Sellaista esinettä ei löytynyt täältä.")
