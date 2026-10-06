@@ -1,3 +1,4 @@
+Timo Jalola
 # Aurinkokylä – Valo kylään
 
 ## Idea ja tausta
