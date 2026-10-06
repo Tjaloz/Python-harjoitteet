@@ -1,29 +1,112 @@
 """
-Aurinkokylä - Valo kylään
-=========================
+Aurinkokylä - Valo kylään (yksinkertaistettu versio)
+=====================================================
 Komentorivipeli, jossa pelaaja auttaa pientä kylää siirtymään saastuttavasta
-dieselgeneraattorista aurinkoenergiaan. Tarina ja tavoite on kuvattu
-tarkemmin tiedostossa intro.txt sekä projektin README.md:ssä.
+dieselgeneraattorista aurinkoenergiaan. Tarina on kuvattu tiedostossa
+intro.txt ja projektin README.md:ssä.
 
-Tämä tiedosto vastaa vain käyttöliittymästä (pääsilmukka ja komennot).
-Pelin luokat (Esine, Huone, Pelaaja) ja tiedostonkäsittely ovat omassa
-pelimoduulit-paketissaan.
 """
 
 import os
 import random
 
-from pelimoduulit import Esine, Huone, Pelaaja, lue_tiedosto, tallenna_tilanne, lataa_tilanne
-from pelimoduulit.tiedostot import TALLENNUSTIEDOSTO
+# Tallennustiedoston polku lasketaan suhteessa TÄMÄN tiedoston sijaintiin,
+# ei siihen mistä kansiosta käsin ohjelma sattuu olevan käynnistetty.
+SCRIPT_KANSIO = os.path.dirname(os.path.abspath(__file__))
+TALLENNUSTIEDOSTO = os.path.join(SCRIPT_KANSIO, "tallennus.txt")
 
 
 # ---------------------------------------------------------------------------
-# Pelin asetukset: tarvittavat osat, niiden hinnat (reitti A: osta) ja
-# rakennusreseptit (reitti B: rakenna kierrätysmateriaaleista). Näiden lisäksi
-# on kolmas reitti (C: opeta koulussa, ks. OPETUSKYSYMYKSET alempana). Kaikki
-# kolme reittiä ovat pelaajalle vaihtoehtoisia tapoja edetä alusta loppuun, ja
-# niitä voi myös yhdistellä vapaasti (esim. osta kaksi osaa, rakenna yksi,
-# ansaitse yksi opettamalla).
+# Luokat
+# ---------------------------------------------------------------------------
+class Esine:
+    """Yksittäinen esine: raaka-aine tai valmis osa. Ominaisuudet: nimi, paino."""
+
+    def __init__(self, nimi, paino):
+        self.nimi = nimi
+        self.paino = paino
+
+    def __str__(self):
+        return f"{self.nimi} ({self.paino} kg)"
+
+
+class Huone:
+    """Pelimaailman paikka. Ominaisuudet: nimi, kuvaus, kerättävät esineet
+    ja mahdollinen keskusteltava hahmo."""
+
+    def __init__(self, nimi, kuvaus, esineet=None, hahmo=None):
+        self.nimi = nimi
+        self.kuvaus = kuvaus
+        self.esineet = esineet if esineet is not None else []
+        self.hahmo = hahmo
+
+    def esittele(self):
+        print(f"\n=== {self.nimi.capitalize()} ===")
+        print(self.kuvaus)
+        if self.esineet:
+            nimet = ", ".join(e.nimi for e in self.esineet)
+            print(f"Täällä on kerättävissä: {nimet}")
+        if self.hahmo:
+            print(f"Täällä on {self.hahmo['nimi']}. Jutellaan komennolla 'puhu'.")
+
+
+class Pelaaja:
+    """Pelaaja: nimi, inventaario, sijainti (Huone) ja kylämerkit."""
+
+    def __init__(self, nimi, sijainti):
+        self.nimi = nimi
+        self.esineet = []
+        self.sijainti = sijainti
+        self.kylamerkit = 0
+
+    def liiku(self, kohde):
+        self.sijainti = kohde
+
+    def keraa_esine(self, nimi):
+        for esine in self.sijainti.esineet:
+            if esine.nimi == nimi:
+                self.sijainti.esineet.remove(esine)
+                self.esineet.append(esine)
+                return True
+        return False
+
+    def lisaa_esine(self, esine):
+        self.esineet.append(esine)
+
+    def poista_esine(self, nimi):
+        for esine in self.esineet:
+            if esine.nimi == nimi:
+                self.esineet.remove(esine)
+                return True
+        return False
+
+    def has_esine(self, nimi):
+        return any(esine.nimi == nimi for esine in self.esineet)
+
+    def nayta_inventaario(self):
+        print(f"Kylämerkkejä: {self.kylamerkit}")
+        if self.esineet:
+            print("Inventaario:")
+            for esine in self.esineet:
+                print("-", esine)
+        else:
+            print("Inventaario on tyhjä.")
+
+    def ansaitse_merkki(self, maara=1):
+        self.kylamerkit += maara
+
+    def kayta_merkkeja(self, maara):
+        if self.kylamerkit >= maara:
+            self.kylamerkit -= maara
+            return True
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Pelin asetukset: neljä tarvittavaa osaa ja kolme tapaa hankkia ne.
+# Jokainen osa vastaa täsmälleen yhtä raaka-ainetta (RAAKA_AINE) ja yhtä
+# hintaa kylämerkkeinä (OSTOHINNAT) - näin rakenna- ja osta-reitit pysyvät
+# yksinkertaisina.
 # ---------------------------------------------------------------------------
 OSTOHINNAT = {
     "aurinkopaneeli": 3,
@@ -32,11 +115,11 @@ OSTOHINNAT = {
     "hallintayksikkö": 4,
 }
 
-RESEPTIT = {
-    "aurinkopaneeli": ["lasinsiru", "alumiinilista"],
-    "akku": ["akkukotelo", "sinkkilevy"],
-    "kaapeli": ["kuparikela", "muovikouru"],
-    "hallintayksikkö": ["piirilevy", "puulevy"],
+RAAKA_AINE = {
+    "aurinkopaneeli": "lasinsiru",
+    "akku": "akkukotelo",
+    "kaapeli": "kuparikela",
+    "hallintayksikkö": "piirilevy",
 }
 
 OSIEN_PAINOT = {
@@ -48,13 +131,6 @@ OSIEN_PAINOT = {
 
 TARVITTAVAT_OSAT = list(OSTOHINNAT.keys())
 
-# ---------------------------------------------------------------------------
-# Reitti C: osan ansaitseminen opettamalla koulussa. Jokaisella yrityksellä
-# arvotaan yksi kestävän kehityksen aiheinen kysymys; oikea vastaus palkitaan
-# valitsemalla jokin vielä puuttuva osa. Tämä reitti ei vaadi rahaa eikä
-# materiaaleja - vain oikean vastauksen - joten sillä voi halutessaan
-# läpäistä koko pelin yksinään, aivan kuten osto- ja rakennusreiteilläkin.
-# ---------------------------------------------------------------------------
 OPETUSKYSYMYKSET = [
     {
         "kysymys": "Mikä seuraavista on esimerkki uusiutuvasta energianlähteestä?",
@@ -70,112 +146,120 @@ OPETUSKYSYMYKSET = [
         "kysymys": "Mikä näistä vähentää eniten jätettä?",
         "vaihtoehdot": {"a": "ostetaan aina uutena", "b": "kierrätetään ja käytetään uudelleen", "c": "heitetään sekajätteeseen"},
         "oikea": "b",
-    }
-    {
-        "kysymys": "Miksi aurinkopaneelit ovat ympäristöystävällisempiä kuin dieselgeneraattori?",
-        "vaihtoehdot": {"a": "ne eivät tuota päästöjä käytön aikana", "b": "ne ovat äänekkäämpiä", "c": "ne tarvitsevat polttoainetta"},
-        "oikea": "a",
     },
 ]
 
 
 def luo_pelimaailma():
-    """Rakentaa kylän paikat, niiden tarinatekstit, kerättävät raaka-aineet
-    ja pelihahmot. Palauttaa listan Huone-olioita, joista ensimmäinen
+    """Rakentaa kylän viisi paikkaa ja palauttaa ne listana. Ensimmäinen
     (kylätalo) on pelin aloitus- ja lopetuspaikka."""
 
     kylatalo = Huone(
         "kylätalo",
-        "Kylätalo on yhteisön sydän. Seinällä riippuu vanha dieselgeneraattori,\n"
-        "joka pitää kylän valot päällä - meluisasti, kalliisti ja saastuttaen.\n"
-        "Kylänvanhin istuu pöydän ääressä karttojen kanssa.",
+        "Kylätalo on yhteisön sydän. Seinällä on vanha dieselgeneraattori,\n"
+        "joka pitää kylän valot päällä - meluisasti ja saastuttaen.",
         hahmo={
             "nimi": "Kylänvanhin Elsa",
             "dialogi": [
-                "\"Tervetuloa kylään! Dieselgeneraattorimme on vanha ja kallis ylläpitää.\"",
-                "\"Jos saisimme rakennettua aurinkovoimalan, säästäisimme rahaa ja\"",
-                "\"vähentäisimme päästöjä samalla. Tarvitsemme neljä osaa: aurinkopaneelin,\"",
-                "\"akun, kaapelin ja hallintayksikön.\"",
-                "\"Voit hankkia osat kahdella tavalla: ostaa ne torilta kylämerkeillä,\"",
-                "\"tai rakentaa ne itse verstaassa kierrätysmateriaaleista.\"",
-                "\"Kun sinulla on kaikki neljä osaa, tule takaisin tänne ja asenna ne!\"",
+                "\"Tarvitsemme neljä osaa aurinkovoimalaan: aurinkopaneelin, akun,\"",
+                "\"kaapelin ja hallintayksikön.\"",
+                "\"Voit ostaa ne torilta, rakentaa verstaassa, tai ansaita opettamalla\"",
+                "\"koulussa. Tuo kaikki neljä tänne ja asenna ne!\"",
             ],
         },
     )
 
     tori = Huone(
         "tori",
-        "Kylän tori on täynnä pieniä myyntikojuja. Yksi niistä myy\n"
-        "aurinkovoimalan osia valmiina - mutta ne maksavat kylämerkkejä.",
+        "Kylän tori. Täällä voi tehdä pieniä hommia kylämerkkien eteen,\n"
+        "ja käyttää merkkejä valmiiden osien ostamiseen.",
     )
 
     verstas = Huone(
         "verstas",
-        "Pölyinen verstas täynnä työkaluja. Täällä kierrätysmateriaaleista\n"
-        "voi rakentaa tarvittavat osat itse, jos löytää oikeat raaka-aineet.",
+        "Pölyinen verstas. Täällä kierrätysmateriaalista voi rakentaa\n"
+        "tarvittavan osan, jos materiaali on mukana.",
     )
 
     kierratyspiste = Huone(
         "kierrätyspiste",
-        "Kylän kierrätyspiste, jonne vanhat laitteet tuodaan ennen kuin ne\n"
-        "päätyisivät kaatopaikalle. Täällä riittää hyödynnettävää materiaalia.",
-        esineet=[
-            Esine("kuparikela", 0.3),
-            Esine("piirilevy", 0.2),
-            Esine("sinkkilevy", 0.3),
-            Esine("akkukotelo", 0.5),
-        ],
-    )
-
-    metsa = Huone(
-        "metsä",
-        "Kylän reunalla kasvava metsä, jonka siistimisen yhteydessä on\n"
-        "löytynyt käyttökelpoisia materiaaleja vanhoista rakennusjätteistä.",
+        "Kylän kierrätyspiste. Täältä löytyy hyödynnettäviä materiaaleja,\n"
+        "jotka muuten päätyisivät kaatopaikalle.",
         esineet=[
             Esine("lasinsiru", 0.1),
-            Esine("puulevy", 1.0),
-            Esine("muovikouru", 0.2),
-            Esine("alumiinilista", 0.4),
+            Esine("akkukotelo", 0.5),
+            Esine("kuparikela", 0.3),
+            Esine("piirilevy", 0.2),
         ],
-    )
-
-    ranta = Huone(
-        "ranta",
-        "Kylän rantaa pitkin ajelehtii valitettavan paljon muoviroskaa.\n"
-        "Kalastaja Jussi kerää sitä päivittäin, ettei se päätyisi järveen.",
-        hahmo={
-            "nimi": "Kalastaja Jussi",
-            "dialogi": [
-                "\"Moi! Autatko keräämään muoviroskaa rannalta?\"",
-                "\"Puhdas järvi hyödyttää koko kylää - ja voin maksaa avusta\"",
-                "\"kylämerkeillä, joilla saa tarvikkeita torilta.\"",
-                "\"Kirjoita 'tee hommia' niin ryhdytään töihin!\"",
-            ],
-        },
     )
 
     koulu = Huone(
         "koulu",
-        "Kylän pieni koulu kaikuu lasten naurusta. Opettaja Liisa yrittää\n"
-        "opettaa oppilaille kestävästä kehityksestä, ja kaipaisi siihen apua.",
+        "Kylän pieni koulu. Opettaja Liisa kaipaisi apua kestävän\n"
+        "kehityksen oppitunnilla.",
         hahmo={
             "nimi": "Opettaja Liisa",
             "dialogi": [
-                "\"Tule auttamaan minua opetustunnilla! Jos osaat vastata oppilaiden\"",
-                "\"puolesta kestävän kehityksen kysymykseen oikein, koulu lahjoittaa\"",
-                "\"kylän hankkeelle yhden osan kiitokseksi.\"",
-                "\"Kirjoita 'opeta' niin kokeillaan!\"",
+                "\"Vastaa oikein kestävän kehityksen kysymykseen, niin koulu\"",
+                "\"lahjoittaa hankkeelle yhden osan! Kirjoita 'opeta'.\"",
             ],
         },
     )
 
-    return [kylatalo, tori, verstas, kierratyspiste, metsa, ranta, koulu]
+    return [kylatalo, tori, verstas, kierratyspiste, koulu]
 
 
-def tulosta_ohjeet():
-    ohjeet = lue_tiedosto("ohjeet.txt")
-    if ohjeet:
-        print(ohjeet)
+def lue_tiedosto(tiedostonimi):
+    """Lukee tekstitiedoston projektin juuresta. Palauttaa None, jos
+    tiedostoa ei löydy."""
+    polku = os.path.join(SCRIPT_KANSIO, tiedostonimi)
+    try:
+        with open(polku, "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return None
+
+
+def tallenna_tilanne(pelaaja):
+    with open(TALLENNUSTIEDOSTO, "w", encoding="utf-8") as f:
+        f.write(pelaaja.nimi + "\n")
+        f.write(pelaaja.sijainti.nimi + "\n")
+        f.write(str(pelaaja.kylamerkit) + "\n")
+        esinerivit = [f"{e.nimi};{e.paino}" for e in pelaaja.esineet]
+        f.write(",".join(esinerivit) + "\n")
+    print("Peli tallennettu.")
+
+
+def lataa_tilanne(huoneet):
+    """Lataa aiemman tallennuksen. Palauttaa uuden Pelaaja-olion, tai None
+    jos tallennusta ei löydy. Poistaa ladatut esineet alkuperäisistä
+    huoneistaan, jotta niitä ei voi kerätä kahteen kertaan."""
+    if not os.path.exists(TALLENNUSTIEDOSTO):
+        print("Tallennusta ei löytynyt.")
+        return None
+
+    with open(TALLENNUSTIEDOSTO, "r", encoding="utf-8") as f:
+        rivit = f.read().splitlines()
+
+    nimi = rivit[0]
+    sijainnin_nimi = rivit[1]
+    kylamerkit = int(rivit[2])
+    esinerivit = rivit[3].split(",") if rivit[3] else []
+
+    sijainti = next((h for h in huoneet if h.nimi == sijainnin_nimi), None)
+    pelaaja = Pelaaja(nimi, sijainti)
+    pelaaja.kylamerkit = kylamerkit
+
+    for rivi in esinerivit:
+        if not rivi:
+            continue
+        esine_nimi, paino_str = rivi.split(";")
+        pelaaja.esineet.append(Esine(esine_nimi, float(paino_str)))
+        for huone in huoneet:
+            huone.esineet = [e for e in huone.esineet if e.nimi != esine_nimi]
+
+    print(f"Tallennus ladattu. Tervetuloa takaisin, {nimi}!")
+    return pelaaja
 
 
 def tulosta_puuttuvat_osat(pelaaja):
@@ -187,33 +271,21 @@ def tulosta_puuttuvat_osat(pelaaja):
 
 
 # ---------------------------------------------------------------------------
-# Reitti A: osien ostaminen torilta kylämerkeillä
+# Reitti A: osta torilta kylämerkeillä
 # ---------------------------------------------------------------------------
 def osta_osa(pelaaja):
-    if pelaaja.sijainti.nimi != "tori":
-        print("Voit ostaa osia vain torilla.")
-        return
-
     ostettavissa = [osa for osa in OSTOHINNAT if not pelaaja.has_esine(osa)]
     if not ostettavissa:
         print("Sinulla on jo kaikki osat!")
         return
 
-    print("Torilla myytävät osat:")
+    print("Myytävät osat:")
     for osa in ostettavissa:
         print(f"- {osa}: {OSTOHINNAT[osa]} kylämerkkiä")
     print(f"Sinulla on {pelaaja.kylamerkit} kylämerkkiä.")
 
     valinta = input("Minkä osan haluat ostaa? (tyhjä peruuttaa): ").strip().lower()
-    if valinta == "":
-        return
-
-    if valinta not in OSTOHINNAT:
-        print("Sellaista osaa ei myydä torilla.")
-        return
-
-    if pelaaja.has_esine(valinta):
-        print("Sinulla on jo tämä osa.")
+    if valinta == "" or valinta not in OSTOHINNAT or pelaaja.has_esine(valinta):
         return
 
     hinta = OSTOHINNAT[valinta]
@@ -225,59 +297,38 @@ def osta_osa(pelaaja):
 
 
 # ---------------------------------------------------------------------------
-# Reitti B: osien rakentaminen verstaassa kierrätysmateriaaleista
+# Reitti B: rakenna verstaassa kierrätysmateriaalista
 # ---------------------------------------------------------------------------
 def rakenna_osa(pelaaja):
-    if pelaaja.sijainti.nimi != "verstas":
-        print("Voit rakentaa osia vain verstaassa.")
-        return
-
-    rakennettavissa = [osa for osa in RESEPTIT if not pelaaja.has_esine(osa)]
+    rakennettavissa = [osa for osa in RAAKA_AINE if not pelaaja.has_esine(osa)]
     if not rakennettavissa:
         print("Sinulla on jo kaikki osat!")
         return
 
     print("Mahdolliset reseptit:")
     for osa in rakennettavissa:
-        materiaalit = RESEPTIT[osa]
-        tila = []
-        for materiaali in materiaalit:
-            merkki = "OK" if pelaaja.has_esine(materiaali) else "puuttuu"
-            tila.append(f"{materiaali} ({merkki})")
-        print(f"- {osa}: tarvitaan " + " + ".join(tila))
+        materiaali = RAAKA_AINE[osa]
+        tila = "OK" if pelaaja.has_esine(materiaali) else "puuttuu"
+        print(f"- {osa}: tarvitaan {materiaali} ({tila})")
 
     valinta = input("Minkä osan haluat rakentaa? (tyhjä peruuttaa): ").strip().lower()
-    if valinta == "":
+    if valinta == "" or valinta not in RAAKA_AINE or pelaaja.has_esine(valinta):
         return
 
-    if valinta not in RESEPTIT:
-        print("Sellaista reseptiä ei ole.")
+    materiaali = RAAKA_AINE[valinta]
+    if not pelaaja.has_esine(materiaali):
+        print(f"Sinulta puuttuu materiaali: {materiaali}")
         return
 
-    if pelaaja.has_esine(valinta):
-        print("Sinulla on jo tämä osa.")
-        return
-
-    materiaalit = RESEPTIT[valinta]
-    if not all(pelaaja.has_esine(materiaali) for materiaali in materiaalit):
-        print("Sinulta puuttuu tarvittavia materiaaleja.")
-        return
-
-    for materiaali in materiaalit:
-        pelaaja.poista_esine(materiaali)
-
+    pelaaja.poista_esine(materiaali)
     pelaaja.lisaa_esine(Esine(valinta, OSIEN_PAINOT[valinta]))
     print(f"Rakensit osan: {valinta}")
 
 
 # ---------------------------------------------------------------------------
-# Reitti C: osan ansaitseminen opettamalla koulussa
+# Reitti C: opeta koulussa
 # ---------------------------------------------------------------------------
 def opeta_koulussa(pelaaja):
-    if pelaaja.sijainti.nimi != "koulu":
-        print("Voit opettaa vain koulussa.")
-        return
-
     puuttuvat = [osa for osa in TARVITTAVAT_OSAT if not pelaaja.has_esine(osa)]
     if not puuttuvat:
         print("Sinulla on jo kaikki osat!")
@@ -289,67 +340,53 @@ def opeta_koulussa(pelaaja):
         print(f"  {kirjain}) {vaihtoehto}")
 
     vastaus = input("Vastauksesi (a/b/c): ").strip().lower()
-
     if vastaus != kysymys["oikea"]:
         print("Ei aivan oikein - yritä myöhemmin uudelleen toisella kysymyksellä!")
         return
 
-    print("Oikein! Oppilaat innostuvat, ja koulu lahjoittaa hankkeelle osan.")
+    print("Oikein! Koulu lahjoittaa hankkeelle osan.")
     print("Puuttuvat osat:", ", ".join(puuttuvat))
     valinta = input("Minkä osan haluat vastaanottaa? (tyhjä peruuttaa): ").strip().lower()
-
-    if valinta == "":
-        return
-    if valinta not in puuttuvat:
-        print("Valitse jokin listatuista puuttuvista osista.")
-        return
-
-    pelaaja.lisaa_esine(Esine(valinta, OSIEN_PAINOT[valinta]))
-    print(f"Sait osan: {valinta}")
+    if valinta in puuttuvat:
+        pelaaja.lisaa_esine(Esine(valinta, OSIEN_PAINOT[valinta]))
+        print(f"Sait osan: {valinta}")
 
 
-# ---------------------------------------------------------------------------
-# Omat lisätoiminnallisuudet:
-# tekstikartta paikoista sekä etenemisyhteenveto.
-# ---------------------------------------------------------------------------
-def nayta_kartta(huoneet):
-    print("\nKylän paikat:")
-    for huone in huoneet:
-        print(f"- {huone.nimi}")
-
-
-def nayta_edistyminen(pelaaja):
-    kerätyt = [osa for osa in TARVITTAVAT_OSAT if pelaaja.has_esine(osa)]
-    prosentti = round(100 * len(kerätyt) / len(TARVITTAVAT_OSAT))
-    print(f"\nEdistyminen: {len(kerätyt)}/{len(TARVITTAVAT_OSAT)} osaa kerätty ({prosentti} %)")
-    print(f"Kylämerkkejä: {pelaaja.kylamerkit}")
-    if kerätyt:
-        print("Kerätyt osat:", ", ".join(kerätyt))
+def tarkista_ikaraja(ika):
+    """Palauttaa True, jos annettu ikä täyttää pelin K12-ikäsuosituksen
+    (12 vuotta tai yli)."""
+    return ika >= 12
 
 
 # ---------------------------------------------------------------------------
 # Pääohjelma
 # ---------------------------------------------------------------------------
 def kaynnista_peli():
+    ika_syote = input("Tämä peli on ikäsuositukseltaan K12. Anna ikäsi: ").strip()
+    if not ika_syote.isdigit() or not tarkista_ikaraja(int(ika_syote)):
+        print("Tämä peli on tarkoitettu 12 vuotta täyttäneille. Ohjelma sammuu.")
+        return
+
     intro = lue_tiedosto("intro.txt")
     if intro:
         print(intro)
 
     huoneet = luo_pelimaailma()
-    kylatalo = huoneet[0]
 
     pelaaja = None
     if os.path.exists(TALLENNUSTIEDOSTO):
-        vastaus = input("Löytyi aiempi tallennus. Haluatko jatkaa siitä? (k/e): ").strip().lower()
+        vastaus = input("Löytyi aiempi tallennus. Jatketaanko siitä? (k/e): ").strip().lower()
         if vastaus == "k":
-            pelaaja = lataa_tilanne(huoneet, Pelaaja)
+            pelaaja = lataa_tilanne(huoneet)
 
     if pelaaja is None:
         nimi = input("Anna pelaajan nimi: ").strip()
-        pelaaja = Pelaaja(nimi, kylatalo)
+        pelaaja = Pelaaja(nimi, huoneet[0])
         print(f"\nTervetuloa kylään, {nimi}!")
 
-    tulosta_ohjeet()
+    ohjeet = lue_tiedosto("ohjeet.txt")
+    if ohjeet:
+        print(ohjeet)
     pelaaja.sijainti.esittele()
 
     while True:
@@ -360,7 +397,7 @@ def kaynnista_peli():
             break
 
         elif komento == "ohjeet":
-            tulosta_ohjeet()
+            print(lue_tiedosto("ohjeet.txt") or "")
 
         elif komento == "katso":
             pelaaja.sijainti.esittele()
@@ -376,15 +413,11 @@ def kaynnista_peli():
                 pelaaja.liiku(kohde)
                 pelaaja.sijainti.esittele()
             else:
-                print("Sellaista paikkaa ei löydy.")
+                print("Sellaista paikkaa ei löydy. Paikat:", ", ".join(h.nimi for h in huoneet))
 
         elif komento == "keraa":
             if not pelaaja.sijainti.esineet:
                 print("Täällä ei ole mitään kerättävää.")
-            elif len(pelaaja.sijainti.esineet) == 1:
-                esine = pelaaja.sijainti.esineet[0]
-                pelaaja.keraa_esine(esine.nimi)
-                print(f"Keräsit esineen: {esine.nimi}")
             else:
                 nimet = ", ".join(e.nimi for e in pelaaja.sijainti.esineet)
                 print(f"Täällä on: {nimet}")
@@ -404,40 +437,44 @@ def kaynnista_peli():
                 print("Täällä ei ole ketään, jonka kanssa jutella.")
 
         elif komento == "tee hommia":
-            if pelaaja.sijainti.nimi != "ranta":
-                print("Täällä ei ole hommia tarjolla juuri nyt.")
+            if pelaaja.sijainti.nimi != "tori":
+                print("Hommia saa tehtyä vain torilla.")
             else:
-                print("Keräät muoviroskaa rannalta puoli tuntia. Järvi kiittää!")
+                print("Autat markkinakauppiasta tunnin ajan. Kiitokseksi saat kylämerkin!")
                 pelaaja.ansaitse_merkki(1)
-                print(f"Ansaitsit 1 kylämerkin. Kylämerkkejä yhteensä: {pelaaja.kylamerkit}")
+                print(f"Kylämerkkejä yhteensä: {pelaaja.kylamerkit}")
 
         elif komento == "osta":
-            osta_osa(pelaaja)
+            if pelaaja.sijainti.nimi != "tori":
+                print("Voit ostaa osia vain torilla.")
+            else:
+                osta_osa(pelaaja)
 
         elif komento == "rakenna":
-            rakenna_osa(pelaaja)
+            if pelaaja.sijainti.nimi != "verstas":
+                print("Voit rakentaa osia vain verstaassa.")
+            else:
+                rakenna_osa(pelaaja)
 
         elif komento == "opeta":
-            opeta_koulussa(pelaaja)
-
-        elif komento == "kartta":
-            nayta_kartta(huoneet)
+            if pelaaja.sijainti.nimi != "koulu":
+                print("Voit opettaa vain koulussa.")
+            else:
+                opeta_koulussa(pelaaja)
 
         elif komento == "edistyminen":
-            nayta_edistyminen(pelaaja)
+            kerätyt = [osa for osa in TARVITTAVAT_OSAT if pelaaja.has_esine(osa)]
+            prosentti = round(100 * len(kerätyt) / len(TARVITTAVAT_OSAT))
+            print(f"Edistyminen: {len(kerätyt)}/{len(TARVITTAVAT_OSAT)} osaa ({prosentti} %)")
 
         elif komento == "asenna":
             if pelaaja.sijainti.nimi != "kylätalo":
                 print("Osat pitää asentaa kylätalolla.")
             elif all(pelaaja.has_esine(osa) for osa in TARVITTAVAT_OSAT):
-                print("\nAsennat aurinkopaneelin, akun, kaapelin ja hallintayksikön")
-                print("kylätalon katolle. Kylänvanhin Elsa hymyilee leveästi:")
-                print("\"Nyt kylämme saa puhdasta energiaa auringosta - ei enää")
-                print("meluisaa ja saastuttavaa dieselgeneraattoria!\"")
-                print("\nOnnittelut! Autoit kylää kohti puhtaampaa energiantuotantoa")
-                print("(YK:n kestävän kehityksen tavoite 7: Edullista ja puhdasta")
-                print("energiaa), vähemmän jätettä kierrätyksen avulla (tavoite 12)")
-                print("ja levitit tietoa kestävästä kehityksestä (tavoite 4).")
+                print("\nAsennat osat kylätalon katolle. Kylänvanhin Elsa hymyilee:")
+                print("\"Nyt kylämme saa puhdasta energiaa auringosta!\"")
+                print("\nOnnistuit edistämään kestävää energiantuotantoa (YK:n tavoite 7),")
+                print("kierrätystä (tavoite 12) ja kestävän kehityksen opetusta (tavoite 4).")
                 print("\n*** PELI LÄPÄISTY ***")
                 break
             else:
