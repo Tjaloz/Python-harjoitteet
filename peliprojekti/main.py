@@ -1,5 +1,5 @@
 """
-Aurinkokylä - Valo kylään (yksinkertaistettu versio)
+Aurinkokylä - Valo kylään
 =====================================================
 Komentorivipeli, jossa pelaaja auttaa pientä kylää siirtymään saastuttavasta
 dieselgeneraattorista aurinkoenergiaan. Tarina on kuvattu tiedostossa

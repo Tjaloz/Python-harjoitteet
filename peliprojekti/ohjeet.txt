@@ -3,7 +3,7 @@
 liiku          - siirry toiseen paikkaan
 katso          - näytä nykyisen paikan kuvaus uudelleen
 puhu           - jutustele paikalla olevan hahmon kanssa
-keraa          - kerää esine nykyisestä paikasta
+kerää         - kerää esine nykyisestä paikasta
 inventaario    - näytä esineet, kylämerkit ja puuttuvat osat
 edistyminen    - näytä etenemisprosentti
 
